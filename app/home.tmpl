@@ -2,6 +2,7 @@
 {{ $show_footer := or (index $home_container.Labels "traefik-home.show-footer") "true" | parseBool }}
 {{ $show_status_dot := or (index $home_container.Labels "traefik-home.show-status-dot") "true" | parseBool }}
 {{ $sort_by := or (index $home_container.Labels "traefik-home.sort-by") "default" }}
+{{ $group_by_compose := or (index $home_container.Labels "traefik-home.group-by-compose") "false" | parseBool }}
 {{ $link_in_new_tab := or (index $home_container.Labels "traefik-home.open-link-in-new-tab") "false" | parseBool }}
 {{ $http_entrypoints := split (or (index $home_container.Labels "traefik-home.http-entrypoints") "web") "," }}
 {{ $https_entrypoints := split (or (index $home_container.Labels "traefik-home.https-entrypoints") "websecure") "," }}
@@ -67,6 +68,12 @@
             background-color: red;
         }
 
+        .group-heading {
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            opacity: 0.75;
+        }
+
         /* first, nth+1, 2nth+1, etc*/
         .row > div:nth-of-type(3n+1) div[data-name]::before {
             background: var(--tile-1-bgcolor);
@@ -101,24 +108,50 @@
         </div>
     </nav>
     <div class="container my-auto pb-4">
-        {{/* Display only containers explicitly enabled */}}
+        {{/* Display only containers explicitly enabled, excluding myself and hidden ones */}}
         {{ $containers := whereLabelValueMatches $ "traefik.enable" "true" }}
-        {{ if eq $sort_by "name" }}
-            {{ $containers = sortObjectsByKeysAsc $containers "Name" }}
+        {{ $filtered_containers := list }}
+        {{ range $container := $containers }}
+            {{ if eq $container.ID $home_container.ID }}
+                {{continue}}
+            {{ end }}
+            {{ $hide_container := or (index $container.Labels "traefik-home.hide") "false" | parseBool }}
+            {{ if $hide_container }}
+                {{continue}}
+            {{ end }}
+            {{ $filtered_containers = append $filtered_containers $container }}
         {{ end }}
-        <div class="row align-content-center justify-content-evenly">            
-            {{ range $container := $containers }}        
+        {{ if eq $sort_by "name" }}
+            {{ $filtered_containers = sortObjectsByKeysAsc $filtered_containers "Name" }}
+        {{ end }}
 
-                {{/* Do not show myself */}}
-                {{ if eq $container.ID $home_container.ID }}
-                    {{continue}}
+        {{/* Group containers by compose project (or the traefik-home.group override), unless grouping is disabled */}}
+        {{ $grouped_containers := dict "" $filtered_containers }}
+        {{ $group_keys := list "" }}
+        {{ if $group_by_compose }}
+            {{ $grouped_containers = dict }}
+            {{ range $container := $filtered_containers }}
+                {{ $group_key := or (index $container.Labels "traefik-home.group") (index $container.Labels "com.docker.compose.project") "Ungrouped" }}
+                {{ $group_containers := default list (get $grouped_containers $group_key) }}
+                {{ $_ := set $grouped_containers $group_key (append $group_containers $container) }}
+            {{ end }}
+            {{ $group_keys = list }}
+            {{ range $group_key := sortAlpha (keys $grouped_containers) }}
+                {{ if ne $group_key "Ungrouped" }}
+                    {{ $group_keys = append $group_keys $group_key }}
                 {{ end }}
+            {{ end }}
+            {{ if has "Ungrouped" (keys $grouped_containers) }}
+                {{ $group_keys = append $group_keys "Ungrouped" }}
+            {{ end }}
+        {{ end }}
 
-                {{/* Do not show hidden containers */}}
-                {{ $hide_container := or (index $container.Labels "traefik-home.hide") "false" | parseBool }}   
-                {{ if $hide_container }}
-                    {{continue}}
-                {{ end }}
+        {{ range $group_key := $group_keys }}
+        {{ if and $group_by_compose (ne $group_key "") }}
+        <h4 class="group-heading text-secondary border-bottom pb-2 mt-4">{{ $group_key }}</h4>
+        {{ end }}
+        <div class="row align-content-center justify-content-evenly">
+            {{ range $container := index $grouped_containers $group_key }}
 
                 {{/* host is saved on a label like traefik.http.routers.<name>.rule */}}
                 {{/* since <name> is unknown, we must cycle throught all labels */}}
@@ -195,7 +228,8 @@
                     </a>
                 </div>
             {{ end }}
-        </div>   
+        </div>
+        {{ end }}
     </div>
     {{ if $show_footer }}
         <footer class="border-top d-flex justify-content-center justify-content-xl-end px-xl-5 py-3">
