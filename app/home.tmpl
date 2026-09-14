@@ -126,24 +126,36 @@
         {{ end }}
 
         {{/* Group containers by compose project (or the traefik-home.group override), unless grouping is disabled */}}
-        {{ $grouped_containers := dict "" $filtered_containers }}
-        {{ $group_keys := list "" }}
-        {{ if $group_by_compose }}
-            {{ $grouped_containers = dict }}
-            {{ range $container := $filtered_containers }}
-                {{ $group_key := or (index $container.Labels "traefik-home.group") (index $container.Labels "com.docker.compose.project") "Ungrouped" }}
-                {{ $group_containers := default list (get $grouped_containers $group_key) }}
-                {{ $_ := set $grouped_containers $group_key (append $group_containers $container) }}
+        {{ $grouped_containers := dict }}
+        {{ $group_key_order := list }}
+        {{ range $container := $filtered_containers }}
+            {{ $group_key := "" }}
+            {{ if $group_by_compose }}
+                {{ $group_key = or (index $container.Labels "traefik-home.group") (index $container.Labels "com.docker.compose.project") "Ungrouped" }}
             {{ end }}
-            {{ $group_keys = list }}
-            {{ range $group_key := sortAlpha (keys $grouped_containers) }}
+            {{ $existing := index $grouped_containers $group_key }}
+            {{ if not $existing }}
+                {{ $existing = list }}
+                {{ $group_key_order = append $group_key_order $group_key }}
+            {{ end }}
+            {{ $_ := set $grouped_containers $group_key (append $existing $container) }}
+        {{ end }}
+
+        {{/* Sort group names alphabetically, but always show "Ungrouped" last */}}
+        {{ $group_keys := sortAlpha $group_key_order }}
+        {{ if $group_by_compose }}
+            {{ $reordered_keys := list }}
+            {{ range $group_key := $group_keys }}
                 {{ if ne $group_key "Ungrouped" }}
-                    {{ $group_keys = append $group_keys $group_key }}
+                    {{ $reordered_keys = append $reordered_keys $group_key }}
                 {{ end }}
             {{ end }}
-            {{ if has "Ungrouped" (keys $grouped_containers) }}
-                {{ $group_keys = append $group_keys "Ungrouped" }}
+            {{ range $group_key := $group_keys }}
+                {{ if eq $group_key "Ungrouped" }}
+                    {{ $reordered_keys = append $reordered_keys $group_key }}
+                {{ end }}
             {{ end }}
+            {{ $group_keys = $reordered_keys }}
         {{ end }}
 
         {{ range $group_key := $group_keys }}

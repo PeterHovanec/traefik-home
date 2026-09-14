@@ -72,6 +72,7 @@ The `traefik-home` container can be configured using the following optional labe
 | traefik-home.open-link-in-new-tab | Whether to open services link in a new tab                                                    | false        |
 | traefik-home.http-entrypoints     | Comma-separated list of entrypoint names treated as HTTP. Example: `web1,web2`                | "web"        |
 | traefik-home.https-entrypoints    | Comma-separated list of entrypoint names treated as HTTPS. Example: `websecure1,websecure2`   | "websecure"  |
+| traefik-home.group-by-compose     | Whether to group containers by their Docker Compose project (see [labels to configure containers](#labels-to-configure-containers)) | false |
 
 ## Labels to configure containers
 
@@ -119,6 +120,7 @@ On each exposed container, the following optional labels can be added to provide
 | traefik-home.hide="true"                | Do not show this container in the home page                                                                                               |
 | traefik-home.icon="https://url/of/icon" | URL of an image that will be used as icon for the container. If this label is not used, a icon with the container's initials will be used |
 | traefik-home.alias="alias"              | If used, the alias will be shown instead of the container name                                                                            |
+| traefik-home.group="group-name"         | When `traefik-home.group-by-compose` is enabled, overrides the group name for this container instead of using its Compose project name    |
 
 <details>
 <summary>serving self-hosted icons</summary>
